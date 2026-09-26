@@ -132,9 +132,10 @@ public class ObjectPool<T> implements AutoCloseable {
                 throw new IllegalStateException(
                         "object is not checked out from this pool (foreign, null or already released)");
             }
-            active--;
             destroy = closed;
-            if (!closed) {
+            if (closed) {
+                active--;
+            } else {
                 idle.addLast(obj);
             }
         } finally {
@@ -163,6 +164,7 @@ public class ObjectPool<T> implements AutoCloseable {
             closed = true;
             toDestroy = new ArrayList<T>(idle);
             idle.clear();
+            active -= toDestroy.size();
         } finally {
             lock.unlock();
         }
@@ -211,6 +213,19 @@ public class ObjectPool<T> implements AutoCloseable {
      */
     public long getLeakThresholdMillis() {
         return leakThresholdMillis;
+    }
+
+    /**
+     * @return the number of live objects: idle plus checked out plus
+     *         currently being created
+     */
+    public int getActiveCount() {
+        lock.lock();
+        try {
+            return active;
+        } finally {
+            lock.unlock();
+        }
     }
 
     private T obtain() {
